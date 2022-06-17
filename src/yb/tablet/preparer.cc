@@ -158,6 +158,7 @@ Status PreparerImpl::Submit(OperationDriver* operation_driver) {
   // Raft queue.
   prepare_should_fail_.store(!leader_side, std::memory_order_release);
 
+  // doodle: leader加入队列 follower直接调用PrepareAndStartTask
   if (leader_side) {
     // Prepare leader-side operations on the "preparer thread" so we can only acquire the
     // ReplicaState lock once and append multiple operations.
@@ -183,10 +184,12 @@ Status PreparerImpl::Submit(OperationDriver* operation_driver) {
 void PreparerImpl::Run() {
   VLOG(2) << "Starting prepare task:" << this;
   for (;;) {
+    // doodle: 从queue_中取driver 然后组成一个batch
     while (OperationDriver *item = queue_.Pop()) {
       active_tasks_.fetch_sub(1, std::memory_order_release);
       ProcessItem(item);
     }
+    // doodle: leader执行OperationDriver的Prepare和Start
     ProcessAndClearLeaderSideBatch();
     std::unique_lock<std::mutex> stop_lock(stop_mtx_);
     running_.store(false, std::memory_order_release);
@@ -261,6 +264,7 @@ void PreparerImpl::ProcessItem(OperationDriver* item) {
   }
 }
 
+// doodle: OperationDriver::ExecuteAsync -> PreparerImpl::Submit -> Run -> ProcessItem -> ProcessAndClearLeaderSideBatch
 void PreparerImpl::ProcessAndClearLeaderSideBatch() {
   if (leader_side_batch_.empty()) {
     return;
@@ -279,6 +283,7 @@ void PreparerImpl::ProcessAndClearLeaderSideBatch() {
   while (iter != leader_side_batch_.end()) {
     auto* operation_driver = *iter;
 
+    // doodle: 将状态置为REPLICATING和PREPARED
     Status s = operation_driver->PrepareAndStart();
 
     if (PREDICT_TRUE(s.ok())) {
@@ -295,6 +300,7 @@ void PreparerImpl::ProcessAndClearLeaderSideBatch() {
   }
 
   // Replicate the remaining batch. No-op for an empty batch.
+  // doodle: 复制replication_subbatch_begin到replication_subbatch_end范围内的所有ConsensusRound
   ReplicateSubBatch(replication_subbatch_begin, replication_subbatch_end);
 
   leader_side_batch_.clear();
@@ -329,6 +335,7 @@ void PreparerImpl::ReplicateSubBatch(
   // Operation successfully processed by ReplicateBatch, but ReplicateBatch did not return yet.
   // Submit of follower side operation is called from another thread.
   bool should_fail = prepare_should_fail_.load(std::memory_order_acquire);
+  // doodle: 调用raft 开始复制
   const Status s = consensus_->ReplicateBatch(rounds_to_replicate_);
   rounds_to_replicate_.clear();
 

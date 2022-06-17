@@ -392,6 +392,7 @@ void MvccManager::AddPending(HybridTime ht, const OpId& op_id, bool is_follower_
       << "Op sequence failure: " << AsString(queue_.back().op_id) << " followed by "
       << AsString(op_id) << " " << InvariantViolationLogPrefix();
 
+  // doodle: 还有这种写法...
   queue_.push_back(QueueItem {
     .hybrid_time = ht,
     .op_id = op_id,

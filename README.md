@@ -8,15 +8,20 @@
 [![Slack chat](https://img.shields.io/badge/Slack:-%23yugabyte_db-blueviolet.svg?logo=slack)](https://www.yugabyte.com/slack)
 [![Analytics](https://yugabyte.appspot.com/UA-104956980-4/home?pixel&useReferer)](https://github.com/yugabyte/ga-beacon)
 
-* [What is YugabyteDB?](#what-is-yugabytedb)
-* [Get Started](#get-started)
-* [Build Apps](#build-apps)
-* [What's being worked on?](#whats-being-worked-on)
-* [Architecture](#architecture)
-* [Need Help?](#need-help)
-* [Contribute](#contribute)
-* [License](#license)
-* [Read More](#read-more)
+> **在mine分支加了写注释**
+
+- [What is YugabyteDB?](#what-is-yugabytedb)
+- [Get Started](#get-started)
+- [Build Apps](#build-apps)
+- [What's being worked on?](#whats-being-worked-on)
+  - [Current roadmap](#current-roadmap)
+  - [Planned additions to the roadmap](#planned-additions-to-the-roadmap)
+  - [Recently released features](#recently-released-features)
+- [Architecture](#architecture)
+- [Need Help?](#need-help)
+- [Contribute](#contribute)
+- [License](#license)
+- [Read More](#read-more)
 
 # What is YugabyteDB?
 

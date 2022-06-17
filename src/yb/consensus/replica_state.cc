@@ -896,6 +896,8 @@ Status ReplicaState::ApplyPendingOperationsUnlocked(
     }
 
     prev_id = current_id;
+    // doodle: 成功replicate到大多数 调用callback
+    // 对于单tablet的事务来说callback就是OperationDriver 参考TabletPeer::StartReplicaOperation
     NotifyReplicationFinishedUnlocked(round, Status::OK(), leader_term, &applied_op_ids);
   }
 
@@ -1315,6 +1317,7 @@ OpId ReplicaState::MinRetryableRequestOpId() {
   return retryable_requests_.CleanExpiredReplicatedAndGetMinOpId();
 }
 
+// doodle: replcate的已经完成(可能成功或者失败) 由status表明
 void ReplicaState::NotifyReplicationFinishedUnlocked(
     const ConsensusRoundPtr& round, const Status& status, int64_t leader_term,
     OpIds* applied_op_ids) {

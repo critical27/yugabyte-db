@@ -72,6 +72,7 @@ YB_DEFINE_ENUM(
 // Base class for transactions.  There are different implementations for different types (Write,
 // AlterSchema, etc.) OperationDriver implementations use Operations along with Consensus to execute
 // and replicate operations in a consensus configuration.
+// doodle: Operation是单个分片中(称为tablet)的各种操作抽象 比如读写数据
 class Operation {
  public:
   enum TraceType {

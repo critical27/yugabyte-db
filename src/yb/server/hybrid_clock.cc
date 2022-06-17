@@ -116,6 +116,7 @@ void HybridClock::RegisterProvider(std::string name, PhysicalClockProvider provi
   providers.emplace(std::move(name), std::move(provider));
 }
 
+// doodle: 默认调用这个构造 实际就是使用WallClock作为本地物理时钟
 HybridClock::HybridClock() : HybridClock(FLAGS_time_source) {}
 
 HybridClock::HybridClock(PhysicalClockPtr clock) : clock_(std::move(clock)) {}
@@ -133,6 +134,8 @@ Status HybridClock::Init() {
   return Status::OK();
 }
 
+// doodle: 核心函数 返回的now就是ClockBase::Now()
+// Clock的传递路径 RpcServerBase -> TabletServer -> TabletPeer -> RaftConsensus
 HybridTimeRange HybridClock::NowRange() {
   HybridTime now;
   uint64_t error;
@@ -148,6 +151,7 @@ void HybridClock::NowWithError(HybridTime *hybrid_time, uint64_t *max_error_usec
 
   HybridClockComponents current_components = components_.load(boost::memory_order_acquire);
 
+  // doodle: 返回PhysicalTime { time_point表示时间点 max_error表示最大漂移时间 }
   auto now = clock_->Now();
   if (PREDICT_FALSE(!now.ok())) {
     LOG(FATAL) << Substitute("Couldn't get the current time: Clock unsynchronized. "
@@ -160,6 +164,7 @@ void HybridClock::NowWithError(HybridTime *hybrid_time, uint64_t *max_error_usec
   VLOG(4) << __func__ << ", new: " << new_components << ", current: " << current_components;
 
   if (now->time_point < current_components.last_usec) {
+    // doodle: 本地物理比其他节点传来的物理时间小
     auto delta_us = current_components.last_usec - now->time_point;
     if (delta_us > FLAGS_max_clock_skew_usec) {
       auto delta = MonoDelta::FromMicroseconds(delta_us);
@@ -175,8 +180,13 @@ void HybridClock::NowWithError(HybridTime *hybrid_time, uint64_t *max_error_usec
       }
     }
   } else {
+    // doodle: 本地物理时间比其他传来的时间大 更新components_
     // Loop over the check in case of concurrent updates making the CAS fail.
     while (now->time_point > current_components.last_usec) {
+      /* doodle: 直接返回
+      // --------|----------|----|---------|--------------------------> time
+      //     now - e       last now    now + e
+      */
       if (components_.compare_exchange_weak(current_components, new_components)) {
         *hybrid_time = HybridTimeFromMicroseconds(new_components.last_usec);
         *max_error_usec = now->max_error;
@@ -188,6 +198,7 @@ void HybridClock::NowWithError(HybridTime *hybrid_time, uint64_t *max_error_usec
       }
     }
   }
+  // doodle: now->time_point < current_components.last_usec成立
 
   // We don't have the last time read max error since it might have originated
   // in another machine, but we can put a bound on the maximum error of the
@@ -216,6 +227,7 @@ void HybridClock::NowWithError(HybridTime *hybrid_time, uint64_t *max_error_usec
 
   *max_error_usec = new_components.last_usec - (now->time_point - now->max_error);
 
+  // doodle: HybridClockComponents中的logical表示下一个logical值 所以now应该减1
   // We've already atomically incremented the logical, so subtract 1.
   *hybrid_time = HybridTimeFromMicrosecondsAndLogicalValue(
       new_components.last_usec, new_components.logical).Decremented();

@@ -66,6 +66,7 @@ std::string Operation::ToString() const {
 
 Status Operation::Replicated(int64_t leader_term) {
   Status complete_status = Status::OK();
+  // doodle: 根据不同operation类型 完成commit操作 比如WriteOperation就是将数据写入rocksdb
   RETURN_NOT_OK(DoReplicated(leader_term, &complete_status));
   Replicated();
   Release();

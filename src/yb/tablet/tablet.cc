@@ -1134,6 +1134,7 @@ Status Tablet::PrepareTransactionWriteBatch(
   return Status::OK();
 }
 
+// doodle: mark 最后写入的rocksdb的入口
 Status Tablet::ApplyKeyValueRowOperations(
     int64_t batch_idx,
     const KeyValueWriteBatchPB& put_batch,

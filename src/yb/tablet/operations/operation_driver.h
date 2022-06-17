@@ -71,6 +71,7 @@ class Preparer;
 //      immediately.
 //
 //  3 - PrepareAndStartTask() calls Prepare() and Start() on the operation.
+//      doodle: 在我看来Prepare就是在触发raft来复制某个日志
 //
 //      Once successfully prepared, if we have not yet replicated (i.e we are leader), also triggers
 //      consensus->Replicate() and changes the replication state to REPLICATING.
@@ -103,6 +104,9 @@ class Preparer;
 // [1] - see 'Implementation Techniques for Main Memory Database Systems', DeWitt et. al.
 //
 // This class is thread safe.
+
+// doodle: OperationDriver本身也是ConsensusRoundCallback，当某个消息被复制到多数派之后，会触发相应回调
+// 参见TabletPeer::StartReplicaOperation函数
 class OperationDriver : public RefCountedThreadSafe<OperationDriver>,
                         public consensus::ConsensusRoundCallback,
                         public MPSCQueueEntry<OperationDriver> {

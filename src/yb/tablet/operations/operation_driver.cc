@@ -99,11 +99,13 @@ Status OperationDriver::Init(std::unique_ptr<Operation>* operation, int64_t term
   }
 
   if (term == OpId::kUnknownTerm) {
+    // doodle: follower收到Operation 已经由leader触发了replicate 状态设置为REPLICATING
     if (operation_) {
       op_id_copy_.store(operation_->op_id(), boost::memory_order_release);
     }
     replication_state_ = REPLICATING;
   } else {
+    // doodle: 创建一个新的需要raft进行复制的消息 放在ConsensusRound中
     if (consensus_) {  // sometimes NULL in tests
       consensus::ReplicateMsgPtr replicate_msg = operation_->NewReplicateMsg();
       auto round = make_scoped_refptr<ConsensusRound>(consensus_, std::move(replicate_msg));
@@ -171,6 +173,8 @@ void OperationDriver::ExecuteAsync() {
     std::this_thread::sleep_for(1ms * delay);
   }
 
+  // doodle: 对于leader加入到preparer队列中，等待调用
+  //         对于follower直接调用PrepareAndStartTask
   auto s = preparer_->Submit(this);
 
   if (operation_) {
@@ -182,11 +186,14 @@ void OperationDriver::ExecuteAsync() {
   }
 }
 
+// doodle: leader在replicate之前会调用AddedToLeader
 void OperationDriver::AddedToLeader(const OpId& op_id, const OpId& committed_op_id) {
   ADOPT_TRACE(trace());
   CHECK(!GetOpId().valid());
   op_id_copy_.store(op_id, boost::memory_order_release);
 
+  // doodle: 设置operation的hlc
+  // 另外会根据raft层传入的op_id和committed_op_id 设置这条要replicate消息的相关信息
   operation_->AddedToLeader(op_id, committed_op_id);
 
   StartOperation();
@@ -211,6 +218,7 @@ bool OperationDriver::StartOperation() {
   return true;
 }
 
+// doodle: 貌似这里最重要的操作就是将状态置为REPLICATING和PREPARED 会在PreparerImpl::ReplicateSubBatch里执行真正的replicate
 Status OperationDriver::PrepareAndStart() {
   ADOPT_TRACE(trace());
   TRACE_EVENT1("operation", "PrepareAndStart", "operation", this);
@@ -293,6 +301,8 @@ void OperationDriver::HandleFailure(const Status& status) {
   }
 }
 
+// doodle: replicate都已经完成(已经有大多数收到了这条日志) 可以进入到commit阶段
+// ReplicaState::NotifyReplicationFinishedUnlocked -> ConsensusRound::NotifyReplicationFinished
 void OperationDriver::ReplicationFinished(
     const Status& status, int64_t leader_term, OpIds* applied_op_ids) {
   LOG_IF(DFATAL, status.ok() && !GetOpId().valid()) << "Invalid op id after replication";
@@ -365,6 +375,7 @@ void OperationDriver::Abort(const Status& status) {
   }
 }
 
+// doodle: 执行commit 将日志应用到状态机
 void OperationDriver::ApplyTask(int64_t leader_term, OpIds* applied_op_ids) {
   TRACE_EVENT_FLOW_END0("operation", "ApplyTask", this);
   ADOPT_TRACE(trace());
@@ -382,6 +393,7 @@ void OperationDriver::ApplyTask(int64_t leader_term, OpIds* applied_op_ids) {
   scoped_refptr<OperationDriver> ref(this);
 
   {
+    // doodle: 写数据
     auto status = operation_->Replicated(leader_term);
     LOG_IF_WITH_PREFIX(FATAL, !status.ok())
         << "Apply failed: " << status

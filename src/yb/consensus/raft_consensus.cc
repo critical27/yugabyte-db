@@ -1166,6 +1166,7 @@ Status RaftConsensus::DoReplicateBatch(const ConsensusRounds& rounds, size_t* pr
     for (const auto& round : rounds) {
       RETURN_NOT_OK(round->CheckBoundTerm(current_term));
     }
+    // doodle: 把rounds的消息加入到raft中 等待replicate
     auto status = AppendNewRoundsToQueueUnlocked(rounds, processed_rounds);
     if (!status.ok()) {
       // In general we have 3 kinds of rounds in case of failure:
@@ -1259,6 +1260,7 @@ Status RaftConsensus::AppendNewRoundsToQueueUnlocked(
     // the write batch inside the write operation.
     //
     // TODO: we could allocate multiple HybridTimes in batch, only reading system clock once.
+    // doodle: leader在开始replicate之前要做的一些工作(比如设置hlc)
     round->callback()->AddedToLeader(op_id, committed_op_id);
 
     Status s = state_->AddPendingOperation(round, OperationMode::kLeader);
@@ -1557,6 +1559,7 @@ Status RaftConsensus::StartReplicaOperationUnlocked(
   VLOG_WITH_PREFIX(1) << "Starting operation: " << msg->id().ShortDebugString();
   scoped_refptr<ConsensusRound> round(new ConsensusRound(this, msg));
   ConsensusRound* round_ptr = round.get();
+  // doodle: 调用TabletPeer::StartReplicaOperation 开始执行事务
   RETURN_NOT_OK(state_->context()->StartReplicaOperation(round, propagated_safe_time));
   auto result = state_->AddPendingOperation(round_ptr, OperationMode::kFollower);
   if (!result.ok()) {

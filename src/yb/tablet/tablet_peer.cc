@@ -632,6 +632,7 @@ Result<HybridTime> TabletPeer::ReportReadRestart() {
   return tablet_->SafeTime(RequireLease::kTrue);
 }
 
+// doodle: mark 疑似入口
 void TabletPeer::Submit(std::unique_ptr<Operation> operation, int64_t term) {
   auto status = CheckRunning();
 
@@ -1011,6 +1012,7 @@ std::unique_ptr<Operation> TabletPeer::CreateOperation(consensus::ReplicateMsg* 
   FATAL_INVALID_ENUM_VALUE(consensus::OperationType, replicate_msg->op_type());
 }
 
+// doodle: mark 疑似入口
 Status TabletPeer::StartReplicaOperation(
     const scoped_refptr<ConsensusRound>& round, HybridTime propagated_safe_time) {
   RaftGroupStatePB value = state();
@@ -1034,14 +1036,17 @@ Status TabletPeer::StartReplicaOperation(
   tablet_->UpdateMonotonicCounter(replicate_msg->monotonic_counter());
 
   auto* operation_ptr = operation.get();
+  // doodle: 创建OperationDriver, 并调用Init
   OperationDriverPtr driver = VERIFY_RESULT(NewReplicaOperationDriver(&operation));
 
+  // doodle: 将OperationDriver设置为ConsensusRound的callback 完成之后会调用callback
   operation_ptr->consensus_round()->SetCallback(driver.get());
 
   if (propagated_safe_time) {
     driver->SetPropagatedSafeTime(propagated_safe_time, tablet_->mvcc_manager());
   }
 
+  // doodle: 开始异步执行事务
   driver->ExecuteAsync();
   return Status::OK();
 }
